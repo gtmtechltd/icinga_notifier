@@ -8,9 +8,10 @@ params[:icinga_server]   = "localhost"
 params[:icinga_port]     = 80
 params[:icinga_login]    = "admin"
 params[:icinga_password] = "password"
-params[:duration]        = 3600   # duration of the downtime
-params[:service]         = "SSH"  # service you want to take down
-params[:hosts]           = [ "localhost" ]  # hosts for which you want to take this service down.
+params[:duration]        = 3600                         # duration of downtime
+params[:service]         = "SSH"                        # servicename you wish to take down
+params[:hosts]           = [ "localhost" ]              # hosts for which you want to schedule downtime
+params[:comment]         = "automated by notifier.rb"   # downtime comment
 
 
 
@@ -25,7 +26,7 @@ def login( http_client, params )
   if cookie =~ /icinga-web=(\w+)/
     cookie_token = $1
   end
-  raise StandardError, "Could not get login token from login cookie" if token.empty?
+  raise StandardError, "Could not get login token from login cookie" if cookie_token.empty?
   params[:cookie_token] = cookie_token
 end
 
@@ -69,7 +70,11 @@ def request_service_downtime( http_client, params )
 
   post_string = "auth=#{params[ :auth_token ]}&selection=#{URI::encode json_selection}&data=#{URI::encode json_data}"
   resp, data = http_client.post(path, post_string, headers)
-  resp.response.body
+  raise StandardError, "Could not schedule downtime" unless resp.response.message == "OK"
+  result = JSON.parse resp.response.body
+  raise StandardError, "Scheduling downtime was not successful" if result["success"].nil?
+  raise StandardError, "Scheduling downtime was not successful" unless result["success"] == true
+  true
 end
 
 # BEGIN
@@ -83,5 +88,7 @@ end
 
 login( http_client, params )
 get_authorization_code( http_client, params )
-puts request_service_downtime( http_client, params)
+request_service_downtime( http_client, params)
+
+puts "Successfully scheduled downtime"
 
